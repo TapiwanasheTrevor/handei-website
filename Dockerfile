@@ -53,16 +53,22 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction --no-script
 # Run composer scripts after install
 RUN composer dump-autoload --optimize
 
-# Install Node dependencies for Laravel
-RUN npm ci --only=production
+# Install Node dependencies including dev dependencies for build
+RUN npm ci
 
 # Build Laravel assets
 RUN npm run build
 
+# Remove dev dependencies after build to reduce image size
+RUN npm prune --omit=dev
+
 # Install and build Next.js application
 WORKDIR /var/www/html/resources/js/landing
-RUN npm ci --only=production
+RUN npm ci
 RUN npm run build
+
+# Remove dev dependencies for Next.js too
+RUN npm prune --omit=dev
 
 # Go back to main directory
 WORKDIR /var/www/html
