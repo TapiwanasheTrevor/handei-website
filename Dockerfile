@@ -47,6 +47,12 @@ WORKDIR /var/www/html
 # Copy all application files first
 COPY . .
 
+# Create .env file from example if it doesn't exist
+RUN if [ ! -f .env ]; then cp .env.example .env; fi
+
+# Generate application key if not set
+RUN php artisan key:generate --force || true
+
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
 
@@ -98,8 +104,16 @@ RUN echo '[www]' > /usr/local/etc/php-fpm.d/zz-docker.conf \
     && echo 'clear_env = no' >> /usr/local/etc/php-fpm.d/zz-docker.conf \
     && echo 'catch_workers_output = yes' >> /usr/local/etc/php-fpm.d/zz-docker.conf
 
-# Update nginx config to use TCP
-RUN sed -i 's|fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;|fastcgi_pass 127.0.0.1:9000;|g' /etc/nginx/sites-available/default || true
+# Configure PHP for production
+RUN echo 'display_errors = Off' > /usr/local/etc/php/conf.d/production.ini \
+    && echo 'display_startup_errors = Off' >> /usr/local/etc/php/conf.d/production.ini \
+    && echo 'error_reporting = E_ALL & ~E_DEPRECATED & ~E_STRICT' >> /usr/local/etc/php/conf.d/production.ini \
+    && echo 'log_errors = On' >> /usr/local/etc/php/conf.d/production.ini \
+    && echo 'error_log = /dev/stderr' >> /usr/local/etc/php/conf.d/production.ini \
+    && echo 'memory_limit = 256M' >> /usr/local/etc/php/conf.d/production.ini \
+    && echo 'upload_max_filesize = 100M' >> /usr/local/etc/php/conf.d/production.ini \
+    && echo 'post_max_size = 100M' >> /usr/local/etc/php/conf.d/production.ini \
+    && echo 'max_execution_time = 60' >> /usr/local/etc/php/conf.d/production.ini
 
 # Copy configuration files
 COPY docker/nginx/site.conf /etc/nginx/sites-available/default
@@ -110,6 +124,38 @@ RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
 echo "Starting Handei Zimbabwe application..."\n\
+\n\
+# Ensure APP_KEY is set\n\
+if [ -z "$APP_KEY" ]; then\n\
+    echo "APP_KEY not found in environment, generating..."\n\
+    php artisan key:generate --force\n\
+fi\n\
+\n\
+# Update .env with environment variables from Render\n\
+if [ ! -z "$APP_KEY" ]; then\n\
+    sed -i "s|APP_KEY=.*|APP_KEY=$APP_KEY|g" .env\n\
+fi\n\
+if [ ! -z "$APP_URL" ]; then\n\
+    sed -i "s|APP_URL=.*|APP_URL=$APP_URL|g" .env\n\
+fi\n\
+if [ ! -z "$DB_CONNECTION" ]; then\n\
+    sed -i "s|DB_CONNECTION=.*|DB_CONNECTION=$DB_CONNECTION|g" .env\n\
+fi\n\
+if [ ! -z "$DB_HOST" ]; then\n\
+    sed -i "s|DB_HOST=.*|DB_HOST=$DB_HOST|g" .env\n\
+fi\n\
+if [ ! -z "$DB_PORT" ]; then\n\
+    sed -i "s|DB_PORT=.*|DB_PORT=$DB_PORT|g" .env\n\
+fi\n\
+if [ ! -z "$DB_DATABASE" ]; then\n\
+    sed -i "s|DB_DATABASE=.*|DB_DATABASE=$DB_DATABASE|g" .env\n\
+fi\n\
+if [ ! -z "$DB_USERNAME" ]; then\n\
+    sed -i "s|DB_USERNAME=.*|DB_USERNAME=$DB_USERNAME|g" .env\n\
+fi\n\
+if [ ! -z "$DB_PASSWORD" ]; then\n\
+    sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=$DB_PASSWORD|g" .env\n\
+fi\n\
 \n\
 # Ensure PHP-FPM directory exists\n\
 mkdir -p /var/run/php\n\
@@ -133,12 +179,23 @@ done\n\
 \n\
 # Run Laravel post-install commands\n\
 php artisan package:discover --ansi || true\n\
+php artisan config:clear\n\
 php artisan config:cache\n\
+php artisan route:clear\n\
 php artisan route:cache\n\
+php artisan view:clear\n\
 php artisan view:cache\n\
 \n\
 # Create storage link\n\
 php artisan storage:link || true\n\
+\n\
+# Show current environment for debugging\n\
+echo "Environment Configuration:"\n\
+echo "APP_ENV: ${APP_ENV:-not set}"\n\
+echo "APP_DEBUG: ${APP_DEBUG:-not set}"\n\
+echo "APP_KEY: ${APP_KEY:0:20}... (truncated)"\n\
+echo "DB_CONNECTION: ${DB_CONNECTION:-not set}"\n\
+echo "DB_HOST: ${DB_HOST:-not set}"\n\
 \n\
 # Start supervisord\n\
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf\n\

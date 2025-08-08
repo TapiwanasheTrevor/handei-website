@@ -23,6 +23,85 @@ Route::get('/health', function () {
     }
 });
 
+// Debug logs endpoint - REMOVE IN PRODUCTION
+Route::get('/debug-logs', function () {
+    $logs = [];
+    $errors = [];
+    
+    // Get Laravel log
+    $logFile = storage_path('logs/laravel.log');
+    if (file_exists($logFile)) {
+        $logs['laravel'] = tail($logFile, 100);
+    } else {
+        $logs['laravel'] = 'No Laravel log file found';
+    }
+    
+    // Check environment
+    $logs['environment'] = [
+        'APP_ENV' => env('APP_ENV', 'not set'),
+        'APP_DEBUG' => env('APP_DEBUG', 'not set'),
+        'APP_KEY' => env('APP_KEY') ? 'SET (hidden)' : 'NOT SET - THIS IS THE PROBLEM!',
+        'APP_URL' => env('APP_URL', 'not set'),
+        'DB_CONNECTION' => env('DB_CONNECTION', 'not set'),
+        'DB_HOST' => env('DB_HOST', 'not set'),
+        'DB_DATABASE' => env('DB_DATABASE', 'not set'),
+        'PHP_VERSION' => PHP_VERSION,
+        'LARAVEL_VERSION' => app()->version(),
+    ];
+    
+    // Check critical directories
+    $logs['directories'] = [
+        'storage_writable' => is_writable(storage_path()),
+        'bootstrap_cache_writable' => is_writable(base_path('bootstrap/cache')),
+        'storage_logs_exists' => is_dir(storage_path('logs')),
+        'storage_framework_exists' => is_dir(storage_path('framework')),
+    ];
+    
+    // Try to get recent errors
+    try {
+        if (file_exists($logFile)) {
+            $content = file_get_contents($logFile);
+            preg_match_all('/\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\].*?ERROR:.*?(?=\[\d{4}-\d{2}-\d{2}|$)/s', $content, $matches);
+            $errors = array_slice($matches[0], -5); // Last 5 errors
+        }
+    } catch (\Exception $e) {
+        $errors[] = 'Could not parse log file: ' . $e->getMessage();
+    }
+    
+    return response()->json([
+        'status' => 'debug',
+        'logs' => $logs,
+        'recent_errors' => $errors,
+        'current_error' => error_get_last(),
+    ], 200);
+});
+
+// Helper function to get last N lines of a file
+if (!function_exists('tail')) {
+    function tail($filename, $lines = 50) {
+        $data = '';
+        if (file_exists($filename)) {
+            $fp = fopen($filename, "r");
+            $block = 4096;
+            $max = filesize($filename);
+            $sum = 0;
+            
+            for ($len = 0; $len < $max; $len += $block) {
+                $seekSize = min($max - $len, $block);
+                fseek($fp, -($len + $seekSize), SEEK_END);
+                $data = fread($fp, $seekSize) . $data;
+                
+                if (substr_count($data, "\n") >= $lines + 1) {
+                    $lines_array = explode("\n", $data);
+                    return implode("\n", array_slice($lines_array, -$lines));
+                }
+            }
+            fclose($fp);
+        }
+        return $data;
+    }
+}
+
 // Serve logo.jpeg file
 Route::get('/logo.jpeg', function () {
     $logoPath = public_path('logo.jpeg');
