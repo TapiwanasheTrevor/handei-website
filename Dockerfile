@@ -73,6 +73,13 @@ WORKDIR /var/www/html/resources/js/landing
 RUN npm ci
 RUN npm run build
 
+# Copy Next.js static files to Laravel public directory for easier serving
+RUN if [ -d ".next/static" ]; then \
+    mkdir -p /var/www/html/public/_next && \
+    cp -r .next/static /var/www/html/public/_next/ && \
+    cp -r .next/server /var/www/html/public/_next/ 2>/dev/null || true; \
+fi
+
 # Remove dev dependencies for Next.js too
 RUN npm prune --omit=dev
 
