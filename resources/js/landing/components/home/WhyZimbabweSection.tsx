@@ -43,7 +43,7 @@ const WhyZimbabweSection = () => {
   ];
 
   return (
-    <section className="section-padding bg-gradient-to-b from-background to-secondary/5">
+    <section className="py-8 md:py-12 bg-gradient-to-b from-background to-secondary/5">
       <div className="max-w-7xl mx-auto container-padding">
         <div ref={ref} className={`text-center mb-16 ${inView ? 'animate-slide-up' : 'opacity-0'}`}>
           <h2 className="text-3xl md:text-5xl font-bold mb-6 text-gradient">
