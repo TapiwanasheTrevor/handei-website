@@ -44,16 +44,13 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy composer files first for better Docker layer caching
-COPY composer.json composer.lock ./
-
-# Install PHP dependencies with platform requirements ignored for problematic packages
-RUN composer install --no-dev --optimize-autoloader --no-interaction --ignore-platform-req=php
-
-# Copy application files
+# Copy all application files first
 COPY . .
 
-# Complete composer install after copying all files
+# Install PHP dependencies
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
+
+# Run composer scripts after install
 RUN composer dump-autoload --optimize
 
 # Install Node dependencies for Laravel
@@ -104,7 +101,8 @@ for i in {1..30}; do\n\
   fi\n\
 done\n\
 \n\
-# Clear and optimize Laravel\n\
+# Run Laravel post-install commands\n\
+php artisan package:discover --ansi || true\n\
 php artisan config:cache\n\
 php artisan route:cache\n\
 php artisan view:cache\n\
