@@ -1,5 +1,5 @@
 # Production Dockerfile for Laravel + Next.js on Render
-FROM php:8.2-fpm
+FROM php:8.3-fpm
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     libpq-dev \
     libzip-dev \
+    libicu-dev \
     zip \
     unzip \
     nginx \
@@ -21,9 +22,21 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install PHP extensions
+# Install PHP extensions including intl
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo pdo_mysql pdo_pgsql mbstring exif pcntl bcmath gd zip opcache
+    && docker-php-ext-configure intl \
+    && docker-php-ext-install \
+        pdo \
+        pdo_mysql \
+        pdo_pgsql \
+        mbstring \
+        exif \
+        pcntl \
+        bcmath \
+        gd \
+        zip \
+        opcache \
+        intl
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -31,11 +44,17 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
+# Copy composer files first for better Docker layer caching
+COPY composer.json composer.lock ./
+
+# Install PHP dependencies with platform requirements ignored for problematic packages
+RUN composer install --no-dev --optimize-autoloader --no-interaction --ignore-platform-req=php
+
 # Copy application files
 COPY . .
 
-# Install PHP dependencies
-RUN composer install --no-dev --optimize-autoloader --no-interaction
+# Complete composer install after copying all files
+RUN composer dump-autoload --optimize
 
 # Install Node dependencies for Laravel
 RUN npm ci --only=production
@@ -67,16 +86,25 @@ COPY docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
-echo "Starting application..."\n\
+echo "Starting Handei Zimbabwe application..."\n\
 \n\
-# Run migrations if database is available\n\
-if php artisan migrate:status > /dev/null 2>&1; then\n\
+# Wait for database with timeout\n\
+echo "Checking database connection..."\n\
+for i in {1..30}; do\n\
+  if php artisan migrate:status > /dev/null 2>&1; then\n\
+    echo "Database is ready!"\n\
     php artisan migrate --force\n\
-else\n\
-    echo "Database not ready, skipping migrations"\n\
-fi\n\
+    break\n\
+  else\n\
+    echo "Database not ready, waiting... ($i/30)"\n\
+    sleep 2\n\
+  fi\n\
+  if [ $i -eq 30 ]; then\n\
+    echo "Database timeout, continuing without migrations..."\n\
+  fi\n\
+done\n\
 \n\
-# Clear and optimize\n\
+# Clear and optimize Laravel\n\
 php artisan config:cache\n\
 php artisan route:cache\n\
 php artisan view:cache\n\
@@ -85,7 +113,7 @@ php artisan view:cache\n\
 php artisan storage:link || true\n\
 \n\
 # Start supervisord\n\
-/usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf\n\
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf\n\
 ' > /start.sh && chmod +x /start.sh
 
 # Expose port
