@@ -1,0 +1,56 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Laravel
+/vendor
+.env
+.env.backup
+.env.local
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+
+# Storage (will be mounted as volumes)
+/storage/*.key
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/logs/*
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.phpunit.result.cache
+.php_cs.cache
+coverage
+
+# Build artifacts (Next.js)
+resources/js/landing/.next
+resources/js/landing/out
+resources/js/landing/node_modules
+
+# Documentation
+README.md
+docs/
+
+# Docker
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile*
+
+# Misc
+.editorconfig
+.styleci.yml

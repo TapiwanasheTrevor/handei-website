@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: handei-website:latest
+    container_name: handei-app
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - DB_CONNECTION=mysql
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_DATABASE=${DB_DATABASE:-handei}
+      - DB_USERNAME=${DB_USERNAME:-handei_user}
+      - DB_PASSWORD=${DB_PASSWORD:-secure_password}
+      - CACHE_DRIVER=redis
+      - SESSION_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./storage/app:/var/www/html/storage/app
+      - ./storage/logs:/var/www/html/storage/logs
+    depends_on:
+      - db
+      - redis
+    networks:
+      - handei-network
+
+  db:
+    image: mysql:8.0
+    container_name: handei-db
+    restart: unless-stopped
+    environment:
+      - MYSQL_DATABASE=${DB_DATABASE:-handei}
+      - MYSQL_USER=${DB_USERNAME:-handei_user}
+      - MYSQL_PASSWORD=${DB_PASSWORD:-secure_password}
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-root_password}
+    ports:
+      - "3307:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+    networks:
+      - handei-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: handei-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - handei-network
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: handei-phpmyadmin
+    restart: unless-stopped
+    environment:
+      - PMA_HOST=db
+      - PMA_PORT=3306
+      - UPLOAD_LIMIT=100M
+    ports:
+      - "8081:80"
+    depends_on:
+      - db
+    networks:
+      - handei-network
+
+volumes:
+  db-data:
+  redis-data:
+
+networks:
+  handei-network:
+    driver: bridge
