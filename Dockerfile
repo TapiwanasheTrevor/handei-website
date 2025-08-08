@@ -77,9 +77,29 @@ WORKDIR /var/www/html
 RUN mkdir -p storage/framework/{cache,sessions,views} \
     && mkdir -p storage/logs \
     && mkdir -p bootstrap/cache \
+    && mkdir -p /var/run/php \
     && chown -R www-data:www-data /var/www/html/storage \
     && chown -R www-data:www-data /var/www/html/bootstrap/cache \
+    && chown -R www-data:www-data /var/run/php \
     && chmod -R 775 storage bootstrap/cache
+
+# Configure PHP-FPM to use TCP instead of Unix socket
+RUN echo '[www]' > /usr/local/etc/php-fpm.d/zz-docker.conf \
+    && echo 'listen = 127.0.0.1:9000' >> /usr/local/etc/php-fpm.d/zz-docker.conf \
+    && echo 'listen.owner = www-data' >> /usr/local/etc/php-fpm.d/zz-docker.conf \
+    && echo 'listen.group = www-data' >> /usr/local/etc/php-fpm.d/zz-docker.conf \
+    && echo 'user = www-data' >> /usr/local/etc/php-fpm.d/zz-docker.conf \
+    && echo 'group = www-data' >> /usr/local/etc/php-fpm.d/zz-docker.conf \
+    && echo 'pm = dynamic' >> /usr/local/etc/php-fpm.d/zz-docker.conf \
+    && echo 'pm.max_children = 50' >> /usr/local/etc/php-fpm.d/zz-docker.conf \
+    && echo 'pm.start_servers = 5' >> /usr/local/etc/php-fpm.d/zz-docker.conf \
+    && echo 'pm.min_spare_servers = 5' >> /usr/local/etc/php-fpm.d/zz-docker.conf \
+    && echo 'pm.max_spare_servers = 35' >> /usr/local/etc/php-fpm.d/zz-docker.conf \
+    && echo 'clear_env = no' >> /usr/local/etc/php-fpm.d/zz-docker.conf \
+    && echo 'catch_workers_output = yes' >> /usr/local/etc/php-fpm.d/zz-docker.conf
+
+# Update nginx config to use TCP
+RUN sed -i 's|fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;|fastcgi_pass 127.0.0.1:9000;|g' /etc/nginx/sites-available/default || true
 
 # Copy configuration files
 COPY docker/nginx/site.conf /etc/nginx/sites-available/default
@@ -90,6 +110,10 @@ RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
 echo "Starting Handei Zimbabwe application..."\n\
+\n\
+# Ensure PHP-FPM directory exists\n\
+mkdir -p /var/run/php\n\
+chown www-data:www-data /var/run/php\n\
 \n\
 # Wait for database with timeout\n\
 echo "Checking database connection..."\n\
