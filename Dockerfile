@@ -77,11 +77,12 @@ RUN rm -rf public/_next
 RUN npm ci
 RUN npm run build
 
-# Copy Next.js static files to Laravel public directory for easier serving
-RUN if [ -d ".next/static" ]; then \
+# Copy Next.js static export files to Laravel public directory
+RUN if [ -d "out/_next" ]; then \
     mkdir -p /var/www/html/public/_next && \
-    cp -r .next/static /var/www/html/public/_next/ && \
-    cp -r .next/server /var/www/html/public/_next/ 2>/dev/null || true; \
+    mkdir -p /var/www/html/public/app && \
+    cp -r out/_next/* /var/www/html/public/_next/ && \
+    cp out/*.html /var/www/html/public/app/ 2>/dev/null || true; \
 fi
 
 # Remove dev dependencies for Next.js too
