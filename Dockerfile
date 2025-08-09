@@ -70,6 +70,10 @@ RUN npm prune --omit=dev
 
 # Install and build Next.js application
 WORKDIR /var/www/html/resources/js/landing
+
+# Remove any conflicting _next directory in Next.js public folder
+RUN rm -rf public/_next
+
 RUN npm ci
 RUN npm run build
 
